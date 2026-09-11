@@ -77,27 +77,36 @@ function initializeModal() {
     const enterWithMusic = document.getElementById('enterWithMusic');
     const enterWithoutMusic = document.getElementById('enterWithoutMusic');
     const modal = document.getElementById('welcomeModal');
+    const musicPlayer = document.getElementById('musicPlayer');
 
     enterWithMusic.addEventListener('click', function() {
         enableMusic = true;
         modal.style.display = 'none';
-        document.getElementById('musicPlayer').style.display = 'block';
+        musicPlayer.style.opacity = '1';
+        musicPlayer.style.pointerEvents = 'auto';
 
-        // El player ya existe (se precargó en DOMContentLoaded), así que
-        // playVideo() se llama de inmediato, dentro del mismo tick del click.
-        // Eso es lo que iOS necesita para no bloquear el audio.
+        // El player ya existe y viene reproduciéndose en silencio desde
+        // DOMContentLoaded (autoplay muted), así que aquí solo hace falta
+        // quitarle el silencio dentro del mismo click. Esto es lo que
+        // Safari/iOS exige: el gesto del usuario debe caer sobre una
+        // reproducción que YA está en curso, no sobre un playVideo() nuevo.
         if (playerReady && player) {
+            player.unMute();
+            player.setVolume(100);
             player.playVideo();
             isPlaying = true;
             updateMusicIcon();
         }
         // Si el player todavía no está listo (conexión lenta), onPlayerReady
-        // se encarga de reproducir apenas termine de inicializar.
+        // se encarga de desmutear apenas termine de inicializar.
     });
 
     enterWithoutMusic.addEventListener('click', function() {
         enableMusic = false;
         modal.style.display = 'none';
+        if (player) {
+            player.pauseVideo();
+        }
     });
 }
 
@@ -116,7 +125,8 @@ function initializeYouTubePlayer() {
         width: '1',
         videoId: 'vwp1yxtcD7I',
         playerVars: {
-            autoplay: 0,
+            autoplay: 1,
+            mute: 1,
             controls: 0,
             disablekb: 1,
             fs: 0,
@@ -141,11 +151,19 @@ function onPlayerReady(event) {
     const musicToggle = document.getElementById('musicToggle');
     musicToggle.addEventListener('click', toggleMusic);
 
+    // El video ya arrancó en silencio (autoplay: 1, mute: 1) apenas cargó,
+    // así siempre hay una reproducción activa esperando al primer gesto.
+    event.target.playVideo();
+
     // Caso borde: el usuario ya hizo click en "con música" antes de que el
-    // player terminara de inicializar (ej. conexión lenta). Lo reproducimos
+    // player terminara de inicializar (ej. conexión lenta). Lo desmuteamos
     // apenas esté listo.
     if (enableMusic && !isPlaying) {
-        document.getElementById('musicPlayer').style.display = 'block';
+        const musicPlayer = document.getElementById('musicPlayer');
+        musicPlayer.style.opacity = '1';
+        musicPlayer.style.pointerEvents = 'auto';
+        event.target.unMute();
+        event.target.setVolume(100);
         event.target.playVideo();
         isPlaying = true;
         updateMusicIcon();
@@ -154,7 +172,7 @@ function onPlayerReady(event) {
 
 function onPlayerStateChange(event) {
     if (event.data === YT.PlayerState.PLAYING) {
-        isPlaying = true;
+        isPlaying = enableMusic;
     } else if (event.data === YT.PlayerState.PAUSED) {
         isPlaying = false;
     }
@@ -164,7 +182,8 @@ function onPlayerStateChange(event) {
 function onPlayerError(event) {
     console.log('Error al cargar el video de YouTube');
     const musicPlayer = document.getElementById('musicPlayer');
-    musicPlayer.style.display = 'block';
+    musicPlayer.style.opacity = '1';
+    musicPlayer.style.pointerEvents = 'auto';
     isPlaying = false;
     updateMusicIcon();
 }
